@@ -10,20 +10,31 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     /**
-     * List all users
+     * List users
+     * - Ha a bejelentkezett user ügynökséghez tartozik, csak a saját ügynökségének user-jeit adja vissza
+     * - Különben minden usert
      */
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(User::all(), 200);
+        $authUser = $request->user();
+
+        if ($authUser && $authUser->agency_id) {
+            // Feltételezi, hogy a User modelben van: agency() kapcsolat
+            $users = $authUser->agency->users;
+        } else {
+            $users = User::all();
+        }
+
+        return response()->json($users, 200);
     }
 
     /**
+     * 1. lekérdezés:
      * List VIP users (name + email)
      */
     public function vipUsers()
     {
-        $vipUsers = User::where('vip', true)
-            ->get(['name', 'email']);
+        $vipUsers = User::where('vip', true)->get(['name', 'email']);
 
         return response()->json($vipUsers, 200);
     }
@@ -31,12 +42,18 @@ class UserController extends Controller
     /**
      * Show a single user
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $user = User::find($id);
-
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
+        }
+
+        $authUser = $request->user();
+
+        // Ha az auth user ügynökséghez tartozik, csak a saját ügynökségén belül nézhet usert
+        if ($authUser && $authUser->agency_id && $authUser->agency_id !== $user->agency_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         return response()->json($user, 200);
@@ -48,18 +65,19 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
-            // ha van vip mező:
-            // 'vip' => 'sometimes|boolean',
+            'name'      => 'required|string|max:255',
+            'email'     => 'required|string|email|max:255|unique:users,email',
+            'password'  => 'required|string|min:6|confirmed',
+            'agency_id' => 'nullable|exists:agencies,agency_id',
+            // 'vip'    => 'sometimes|boolean',
         ]);
 
         $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            // 'vip' => $validated['vip'] ?? false,
+            'name'      => $validated['name'],
+            'email'     => $validated['email'],
+            'password'  => Hash::make($validated['password']),
+            'agency_id' => $validated['agency_id'] ?? null,
+            // 'vip'    => $validated['vip'] ?? false,
         ]);
 
         return response()->json($user, 201);
@@ -82,10 +100,11 @@ class UserController extends Controller
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users')->ignore($user->id),
+                Rule::unique('users', 'email')->ignore($user->id),
             ],
-            'password' => 'sometimes|string|min:6',
-            // 'vip' => 'sometimes|boolean',
+            'password'  => 'sometimes|string|min:6|confirmed',
+            'agency_id' => 'nullable|exists:agencies,agency_id',
+            // 'vip'    => 'sometimes|boolean',
         ]);
 
         if (isset($validated['password'])) {
