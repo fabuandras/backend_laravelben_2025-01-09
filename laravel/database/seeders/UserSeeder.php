@@ -4,26 +4,24 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\User;
+use App\Models\Agency;
+use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Alapértelmezett admin felhasználó létrehozása
+        $agency = Agency::first();
+
         User::create([
             'name' => 'Admin User',
-            'username' => 'admin',
             'email' => 'admin@example.com',
-            'password' => 'password', // a model automatikusan hash-eli
-            'profile_photo' => null,
-            'bio' => 'Ez az admin felhasználó.',
-            'is_admin' => true,
+            'password' => Hash::make('password'),
+            'agency_id' => $agency ? $agency->agency_id : null,
         ]);
 
-        // Több teszt felhasználó generálása factory-val
-        User::factory()->count(10)->create();
+        User::factory()->count(5)->create([
+            'agency_id' => $agency ? $agency->agency_id : null,
+        ]);
     }
 }

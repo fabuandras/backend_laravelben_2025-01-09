@@ -7,29 +7,28 @@ use App\Models\Agency;
 
 class AgencyController extends Controller
 {
-    /**
-     * List all agencies
-     */
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
+        if ($user->agency_id) {
+            return response()->json($user->agency, 200);
+        }
         return response()->json(Agency::all(), 200);
     }
 
-    /**
-     * Show a single agency
-     */
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $agency = Agency::find($id);
-        if (!$agency) {
-            return response()->json(['message' => 'Agency not found'], 404);
+        if (!$agency) return response()->json(['message' => 'Agency not found'], 404);
+
+        $user = $request->user();
+        if ($user->agency_id && $user->agency_id !== $agency->agency_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
+
         return response()->json($agency, 200);
     }
 
-    /**
-     * Create a new agency
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -43,9 +42,6 @@ class AgencyController extends Controller
         return response()->json($agency, 201);
     }
 
-    /**
-     * Update an agency
-     */
     public function update(Request $request, $id)
     {
         $agency = Agency::find($id);
@@ -62,9 +58,6 @@ class AgencyController extends Controller
         return response()->json($agency, 200);
     }
 
-    /**
-     * Delete an agency
-     */
     public function destroy($id)
     {
         $agency = Agency::find($id);
