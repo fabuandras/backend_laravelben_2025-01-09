@@ -16,6 +16,19 @@ class AgencyController extends Controller
     }
 
     /**
+     * 4. lekérdezés:
+     * Listázd ki a legalább 2 eseményt szervező ügynökségeket minden adattal
+     */
+    public function agenciesWithAtLeastTwoEvents()
+    {
+        $agencies = Agency::with('events')
+            ->has('events', '>=', 2)
+            ->get();
+
+        return response()->json($agencies, 200);
+    }
+
+    /**
      * Show a single agency
      */
     public function show($id)
@@ -33,9 +46,9 @@ class AgencyController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name'    => 'required|string|max:255',
             'country' => 'required|string|max:255',
-            'type' => 'required|string|size:1',
+            'type'    => 'required|string|size:1',
         ]);
 
         $agency = Agency::create($validated);
@@ -49,12 +62,14 @@ class AgencyController extends Controller
     public function update(Request $request, $id)
     {
         $agency = Agency::find($id);
-        if (!$agency) return response()->json(['message' => 'Agency not found'], 404);
+        if (!$agency) {
+            return response()->json(['message' => 'Agency not found'], 404);
+        }
 
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
+            'name'    => 'sometimes|string|max:255',
             'country' => 'sometimes|string|max:255',
-            'type' => 'sometimes|string|size:1',
+            'type'    => 'sometimes|string|size:1',
         ]);
 
         $agency->update($validated);
@@ -68,9 +83,12 @@ class AgencyController extends Controller
     public function destroy($id)
     {
         $agency = Agency::find($id);
-        if (!$agency) return response()->json(['message' => 'Agency not found'], 404);
+        if (!$agency) {
+            return response()->json(['message' => 'Agency not found'], 404);
+        }
 
         $agency->delete();
+
         return response()->json(['message' => 'Agency deleted'], 200);
     }
 }

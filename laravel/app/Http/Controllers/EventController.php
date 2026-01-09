@@ -3,7 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\Participate;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class EventController extends Controller
 {
@@ -13,6 +17,120 @@ class EventController extends Controller
     public function index()
     {
         return response()->json(Event::all());
+    }
+
+    /**
+     * 3. lekérdezés:
+     * Állítsd lejártra (status = 2) a legalább 3 hete szervezett eseményeket
+     */
+    public function expireOldEvents()
+    {
+        $threeWeeksAgo = Carbon::today()->subWeeks(3);
+
+        $updated = Event::whereDate('date', '<=', $threeWeeksAgo)
+            ->update([
+                'status' => 2
+            ]);
+
+        return response()->json([
+            'message' => 'Old events set to expired',
+            'updated_rows' => $updated
+        ], 200);
+    }
+
+    /**
+     * 5. lekérdezés:
+     * Az egyik kiemelt eseményre hívd meg az egyik VIP vendéget, de csak ha van még hely!
+     * (Meghíváskor present = false)
+     *
+     * POST /api/events/{event_id}/invite-vip
+     * Body: { "user_id": 5 }
+     */
+    public function inviteVipIfHasSpace(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|integer',
+        ]);
+
+        $eventId = (int) $id;
+        $userId  = (int) $validated['user_id'];
+
+        $result = DB::transaction(function () use ($eventId, $userId) {
+            // Event rekord zárolása, hogy ne legyen ütközés kapacitás ellenőrzésnél
+            $event = Event::where('event_id', $eventId)->lockForUpdate()->firstOrFail();
+
+            // VIP ellenőrzés (feltételezve: users.vip boolean)
+            $user = User::where('id', $userId)->firstOrFail();
+            if (empty($user->vip)) {
+                return [
+                    'ok' => false,
+                    'status' => 422,
+                    'message' => 'A felhasználó nem VIP.',
+                ];
+            }
+
+            // Már szerepel ezen az eseményen?
+            $alreadyExists = Participate::where('event_id', $eventId)
+                ->where('user_id', $userId)
+                ->exists();
+
+            if ($alreadyExists) {
+                return [
+                    'ok' => false,
+                    'status' => 409,
+                    'message' => 'A felhasználó már meg van hívva / szerepel ezen az eseményen.',
+                ];
+            }
+
+            // Kapacitás ellenőrzés
+            $currentCount = Participate::where('event_id', $eventId)->count();
+            if ($currentCount >= (int) $event->limit) {
+                return [
+                    'ok' => false,
+                    'status' => 409,
+                    'message' => 'Nincs több hely az eseményen.',
+                ];
+            }
+
+            // Meghívás rögzítése
+            $participation = Participate::create([
+                'event_id' => $eventId,
+                'user_id'  => $userId,
+                'present'  => false,
+            ]);
+
+            return [
+                'ok' => true,
+                'status' => 201,
+                'message' => 'VIP vendég meghívva az eseményre.',
+                'data' => $participation,
+            ];
+        });
+
+        return response()->json(
+            ['message' => $result['message']] + (isset($result['data']) ? ['data' => $result['data']] : []),
+            $result['status']
+        );
+    }
+
+    /**
+     * 6. lekérdezés:
+     * Az egyik eseményt halaszd el egy héttel későbbre!
+     *
+     * PUT /api/events/{event_id}/postpone-one-week
+     */
+    public function postponeOneWeek(string $id)
+    {
+        $event = Event::findOrFail($id);
+
+        $event->update([
+            'date' => Carbon::parse($event->date)->addWeek(),
+        ]);
+
+        return response()->json([
+            'message' => 'Event postponed by one week',
+            'event'   => $event
+        ], 200);
     }
 
     /**

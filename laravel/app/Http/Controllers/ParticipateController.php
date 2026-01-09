@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Participate;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ParticipateController extends Controller
 {
@@ -13,6 +14,30 @@ class ParticipateController extends Controller
     public function index()
     {
         return Participate::all();
+    }
+
+    /**
+     * 2. lekérdezés:
+     * Mondd le a mai napra tervezett eseményeken való részvételedet! (present := false)
+     */
+    public function cancelToday()
+    {
+        $userId = Auth::id();
+
+        if (!$userId) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $updated = Participate::where('user_id', $userId)
+            ->whereHas('event', function ($query) {
+                $query->whereDate('date', today());
+            })
+            ->update(['present' => false]);
+
+        return response()->json([
+            'message' => 'Today participations cancelled',
+            'updated_rows' => $updated
+        ], 200);
     }
 
     /**
