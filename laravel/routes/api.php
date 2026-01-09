@@ -5,11 +5,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AdminController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
+
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
@@ -31,4 +33,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('{id}', [AgencyController::class, 'update']);
         Route::delete('{id}', [AgencyController::class, 'destroy']);
     });
+
+    Route::prefix('admins')->group(function () {
+        Route::get('/', [AdminController::class, 'index']);
+        Route::get('{id}', [AdminController::class, 'show']);
+        Route::post('/', [AdminController::class, 'store']);
+        Route::put('{id}', [AdminController::class, 'update']);
+        Route::delete('{id}', [AdminController::class, 'destroy']);
+    });
+
 });
